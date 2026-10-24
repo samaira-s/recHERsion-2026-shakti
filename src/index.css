@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg-base: #F8F6F2;
+    --bg-raised: #FFFFFF;
+    --bg-cards: #FFFFFF;
+    --text-ivory: #3D3846;
+    --text-muted: #7A728A;
+    --accent: #9B8EDB;
+    --accent-dark: #6C62B0;
+    --emerald-sage: #88C4A5;
+    --saffron-peach: #E8A598;
+    --border-color: #EAE3D9;
+  }
+
+  .dark-theme {
+    --bg-base: #1E1A24;
+    --bg-raised: #282333;
+    --bg-cards: #322C42;
+    --text-ivory: #F3EFEA;
+    --text-muted: #A8A0BA;
+    --accent: #B0A6F0;
+    --accent-dark: #D4CEF8;
+    --emerald-sage: #88C4A5;
+    --saffron-peach: #E8A598;
+    --border-color: #423B54;
+  }
+}
+
+body {
+  background-color: var(--bg-base);
+  color: var(--text-ivory);
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Fraunces', serif;
+}
+
+@keyframes archDoorsLeft {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-100%); }
+}
+
+@keyframes archDoorsRight {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-arch-left {
+  animation: archDoorsLeft 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-arch-right {
+  animation: archDoorsRight 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
