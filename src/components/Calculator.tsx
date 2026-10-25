@@ -57,6 +57,16 @@ export const Calculator: React.FC = () => {
     setErrorMsg('');
   };
 
+  const safeCalculate = (expr: string) => {
+    try {
+      const sanitized = expr.replace(/[^0-9+\-*/().]/g, '');
+      const fn = new Function('"use strict";return (' + sanitized + ')');
+      return fn();
+    } catch {
+      throw new Error('Invalid calculation');
+    }
+  };
+
   const triggerUnlockReveal = () => {
     setUnlocking(true);
     const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -76,7 +86,7 @@ export const Calculator: React.FC = () => {
       const meta = await getVaultMeta();
       if (!meta) {
         try {
-          const result = eval(equation + display);
+          const result = safeCalculate(equation + display);
           setDisplay(String(result));
         } catch {
           setDisplay('Error');
@@ -114,7 +124,7 @@ export const Calculator: React.FC = () => {
         setLockoutTime(delay);
 
         try {
-          const result = eval(equation + display);
+          const result = safeCalculate(equation + display);
           setDisplay(String(result));
         } catch {
           setDisplay('Error');
@@ -150,7 +160,7 @@ export const Calculator: React.FC = () => {
     try {
       const salt = await generateSalt();
       const key = await deriveKeyFromPin(setupPin, salt);
-      const checkPayload = { test: 'saakshi-vault-ok' };
+      const checkPayload = { test: 'shakti-vault-ok' };
       const encryptedCheck = await encryptData(key, checkPayload);
 
       const meta = {
