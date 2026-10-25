@@ -79,35 +79,35 @@ export const VerifyPage: React.FC = () => {
 
       <main className="max-w-xl mx-auto px-4 py-12 space-y-8">
         <div className="text-center space-y-3">
-          <div className="inline-flex rounded-3xl bg-[#C9A24B]/15 p-4 text-[#C9A24B] border border-[#C9A24B]/30">
+          <div className="inline-flex rounded-3xl bg-[#EAE6F8] p-4 text-[#9B8EDB] border border-[#9B8EDB]/30">
             <Shield className="w-10 h-10" />
           </div>
-          <h1 className="text-3xl font-serif font-bold text-[var(--text-ivory)]">Saakshi Verification Portal</h1>
+          <h1 className="text-3xl font-serif font-bold text-[var(--text-ivory)]">Shakti Verification Portal</h1>
           <p className="text-sm text-[var(--text-muted)]">
-            Public cryptographic integrity check for exported evidence reports.
+            Your witness. Your vault. Only yours. Public cryptographic integrity check for exported evidence reports.
           </p>
         </div>
 
         {/* Verification Status Card */}
-        <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[#C9A24B]/25 space-y-4">
+        <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[var(--border-color)] space-y-4">
           <h2 className="text-lg font-serif font-bold text-[var(--text-ivory)]">Certificate Status</h2>
 
           {loading ? (
             <p className="text-xs text-[var(--text-muted)]">Checking verification fingerprint...</p>
           ) : verifiedRecord ? (
-            <div className="rounded-2xl bg-[#7FC4A3]/15 p-4 border border-[#7FC4A3]/40 flex items-center gap-3">
-              <CheckCircle2 className="w-6 h-6 text-[#7FC4A3]" />
+            <div className="rounded-2xl bg-[#88C4A5]/15 p-4 border border-[#88C4A5]/40 flex items-center gap-3">
+              <CheckCircle2 className="w-6 h-6 text-[#88C4A5]" />
               <div className="text-xs text-[var(--text-ivory)]">
-                <strong className="block font-bold text-[#7FC4A3]">Issued by Saakshi</strong>
+                <strong className="block font-bold text-[#88C4A5]">Issued by Shakti</strong>
                 <span>Date: {new Date(verifiedRecord.timestamp).toLocaleString()}</span>
                 <div className="font-mono text-[10px] mt-1 text-[var(--text-muted)]">Case ID: {verifiedRecord.caseId}</div>
               </div>
             </div>
           ) : (
-            <div className="rounded-2xl bg-[#F0B27A]/25 p-4 border border-[#F0B27A]/40 flex items-center gap-3">
-              <AlertTriangle className="w-6 h-6 text-[#F0B27A]" />
+            <div className="rounded-2xl bg-[#E8A598]/25 p-4 border border-[#E8A598]/40 flex items-center gap-3">
+              <AlertTriangle className="w-6 h-6 text-[#C77D65]" />
               <div className="text-xs text-[var(--text-ivory)]">
-                <strong className="block font-bold text-[#F0B27A]">Unsigned Fingerprint Mode</strong>
+                <strong className="block font-bold text-[#C77D65]">Unsigned Fingerprint Mode</strong>
                 <span className="font-mono text-[10px] break-all text-[var(--text-muted)]">{fragment || 'No verification fragment provided in URL.'}</span>
               </div>
             </div>
@@ -119,26 +119,26 @@ export const VerifyPage: React.FC = () => {
         </div>
 
         {/* File Drop Zone / Check Files */}
-        <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[#C9A24B]/25 space-y-4 text-center">
+        <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[var(--border-color)] space-y-4 text-center">
           <h3 className="text-lg font-serif font-bold text-[var(--text-ivory)]">Check Your Files</h3>
           <p className="text-xs text-[var(--text-muted)]">
             Upload an exported evidence file to re-compute hashes and verify integrity.
           </p>
 
-          <label className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#C9A24B]/40 p-8 cursor-pointer hover:border-[#C9A24B] transition bg-[var(--bg-base)]">
-            <Upload className="w-8 h-8 text-[#C9A24B] mb-2" />
+          <label className="flex flex-col items-center justify-center rounded-2xl border-2 border-dashed border-[#9B8EDB]/40 p-8 cursor-pointer hover:border-[#9B8EDB] transition bg-[var(--bg-base)]">
+            <Upload className="w-8 h-8 text-[#9B8EDB] mb-2" />
             <span className="text-xs font-medium text-[var(--text-ivory)]">Click to upload or drag file here</span>
             <input type="file" onChange={handleFileUpload} className="hidden" />
           </label>
 
           {checkResult === 'match' && (
-            <div className="rounded-2xl bg-[#7FC4A3]/15 p-4 text-xs font-semibold text-[#7FC4A3] flex items-center justify-center gap-2 border border-[#7FC4A3]/30">
+            <div className="rounded-2xl bg-[#88C4A5]/15 p-4 text-xs font-semibold text-[#88C4A5] flex items-center justify-center gap-2 border border-[#88C4A5]/30">
               <CheckCircle2 className="w-4 h-4" /> All items are unchanged since you saved them.
             </div>
           )}
 
           {checkResult === 'mismatch' && (
-            <div className="rounded-2xl bg-[#F0B27A]/25 p-4 text-xs font-semibold text-[#F0B27A] flex items-center justify-center gap-2 border border-[#F0B27A]/40">
+            <div className="rounded-2xl bg-[#E8A598]/25 p-4 text-xs font-semibold text-[#C77D65] flex items-center justify-center gap-2 border border-[#E8A598]/40">
               <AlertTriangle className="w-4 h-4" /> This item doesn't match what was saved.
             </div>
           )}

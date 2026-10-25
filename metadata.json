@@ -1,6 +1,6 @@
 {
   "name": "Shakti",
-  "description": "A privacy-first digital sanctuary for evidence preservation and safe support.",
+  "description": "Your witness. Your vault. Only yours.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

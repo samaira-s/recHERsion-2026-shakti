@@ -99,18 +99,18 @@ Sincerely,
 
       // Title
       doc.setFontSize(22);
-      doc.setTextColor(23, 16, 31); // midnight plum
-      doc.text('Saakshi — Evidence & Report Draft', 20, y);
+      doc.setTextColor(61, 56, 70);
+      doc.text('Shakti — Evidence & Report Draft', 20, y);
       y += 10;
 
       doc.setFontSize(10);
-      doc.setTextColor(201, 162, 75); // antique gold
+      doc.setTextColor(155, 142, 219);
       doc.text(`Case ID: ${caseRecord.id} · Generated: ${new Date().toLocaleString()}`, 20, y);
       y += 15;
 
       // Complaint Draft
       doc.setFontSize(14);
-      doc.setTextColor(23, 16, 31);
+      doc.setTextColor(61, 56, 70);
       doc.text('1. Complaint Draft', 20, y);
       y += 8;
 
@@ -124,7 +124,7 @@ Sincerely,
       // Evidence Summary
       if (y > 250) { doc.addPage(); y = 20; }
       doc.setFontSize(14);
-      doc.setTextColor(23, 16, 31);
+      doc.setTextColor(61, 56, 70);
       doc.text('2. Evidence Timeline & Cryptographic Hashes', 20, y);
       y += 8;
 
@@ -164,8 +164,8 @@ Sincerely,
       doc.addImage(qrDataUrl, 'PNG', 20, y, 35, 35);
 
       doc.setFontSize(9);
-      doc.setTextColor(23, 16, 31);
-      doc.text('Scan QR code to verify cryptographic integrity on Saakshi.', 60, y + 15);
+      doc.setTextColor(61, 56, 70);
+      doc.text('Scan QR code to verify cryptographic integrity on Shakti. Your witness. Your vault. Only yours.', 60, y + 15);
       y += 45;
 
       if (y > 270) { doc.addPage(); y = 20; }
@@ -173,7 +173,7 @@ Sincerely,
       doc.setTextColor(120, 120, 120);
       doc.text('Assistive draft prepared for legal review. Not legal advice.', 20, y);
 
-      doc.save(`Saakshi-Report-${caseRecord.id}.pdf`);
+      doc.save(`Shakti-Report-${caseRecord.id}.pdf`);
     } catch (err) {
       console.error('PDF generation error:', err);
     } finally {
@@ -195,7 +195,7 @@ Sincerely,
         <div className="flex items-center justify-between">
           <button
             onClick={() => navigate(`/case/${id}`)}
-            className="flex items-center gap-2 text-xs font-semibold text-[#C9A24B] hover:underline"
+            className="flex items-center gap-2 text-xs font-semibold text-[#9B8EDB] hover:underline"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back to case</span>
@@ -204,7 +204,7 @@ Sincerely,
           <button
             onClick={handleDownloadPdf}
             disabled={generatingPdf}
-            className="flex items-center gap-2 rounded-2xl bg-[#C9A24B] px-5 py-3 text-sm font-medium text-[#17101F] shadow-md hover:bg-[#b8913e] transition disabled:opacity-50"
+            className="flex items-center gap-2 rounded-2xl bg-[#9B8EDB] px-5 py-3 text-sm font-medium text-white shadow-md hover:bg-[#867bc7] transition disabled:opacity-50"
           >
             <Download className="w-4 h-4" />
             <span>{generatingPdf ? 'Generating PDF...' : 'Download evidence report (PDF)'}</span>
@@ -212,26 +212,26 @@ Sincerely,
         </div>
 
         {/* Notice */}
-        <div className="rounded-2xl bg-[#7FC4A3]/15 p-4 border border-[#7FC4A3]/30 flex items-center gap-3 text-xs text-[var(--text-ivory)]">
-          <Shield className="w-5 h-5 text-[#7FC4A3] shrink-0" />
+        <div className="rounded-2xl bg-[#88C4A5]/15 p-4 border border-[#88C4A5]/30 flex items-center gap-3 text-xs text-[var(--text-ivory)]">
+          <Shield className="w-5 h-5 text-[#88C4A5] shrink-0" />
           <div>
-            <strong className="text-[#7FC4A3]">Important Notice:</strong> This follows the National Cyber Crime Reporting Portal's steps. Please check your details against the live form at <a href="https://cybercrime.gov.in" target="_blank" rel="noreferrer" className="underline font-bold">cybercrime.gov.in</a>. Saakshi is an assistive tool and does not claim official portal integration.
+            <strong className="text-[#88C4A5]">Important Notice:</strong> This follows the National Cyber Crime Reporting Portal's steps. Please check your details against the live form at <a href="https://cybercrime.gov.in" target="_blank" rel="noreferrer" className="underline font-bold">cybercrime.gov.in</a>. Shakti is an assistive tool and does not claim official portal integration.
           </div>
         </div>
 
         {/* What Happens Next Card */}
-        <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[#C9A24B]/25 space-y-4">
+        <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[var(--border-color)] space-y-4">
           <h2 className="text-xl font-serif font-bold text-[var(--text-ivory)]">What Happens Next</h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-[var(--text-muted)]">
-            <div className="rounded-2xl bg-[var(--bg-cards)] p-4 border border-[#C9A24B]/15 space-y-2">
+            <div className="rounded-2xl bg-[var(--bg-cards)] p-4 border border-[var(--border-color)] space-y-2">
               <h3 className="font-bold text-[var(--text-ivory)]">1. Report to Platform</h3>
               <p>Report the abusive profile or chats directly on Instagram, WhatsApp, or Telegram for swift removal.</p>
             </div>
-            <div className="rounded-2xl bg-[var(--bg-cards)] p-4 border border-[#C9A24B]/15 space-y-2">
+            <div className="rounded-2xl bg-[var(--bg-cards)] p-4 border border-[var(--border-color)] space-y-2">
               <h3 className="font-bold text-[var(--text-ivory)]">2. Report Online</h3>
               <p>Submit formal complaint on cybercrime.gov.in or call helpline 1930 using your generated complaint draft.</p>
             </div>
-            <div className="rounded-2xl bg-[var(--bg-cards)] p-4 border border-[#C9A24B]/15 space-y-2">
+            <div className="rounded-2xl bg-[var(--bg-cards)] p-4 border border-[var(--border-color)] space-y-2">
               <h3 className="font-bold text-[var(--text-ivory)]">3. Visit in Person</h3>
               <p>Visit your local cyber cell or women police station if you require urgent physical intervention or FIR registration.</p>
             </div>
@@ -239,19 +239,19 @@ Sincerely,
         </div>
 
         {/* Complaint Draft Card */}
-        <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[#C9A24B]/25 space-y-4">
+        <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[var(--border-color)] space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-xl font-serif font-bold text-[var(--text-ivory)]">Complaint Draft</h2>
             <button
               onClick={() => handleCopyText(complaintDraft, 'draft')}
-              className="flex items-center gap-1.5 rounded-xl bg-[#C9A24B]/15 px-3 py-1.5 text-xs font-medium text-[#C9A24B] hover:bg-[#C9A24B]/25 transition border border-[#C9A24B]/30"
+              className="flex items-center gap-1.5 rounded-xl bg-[#EAE6F8] px-3 py-1.5 text-xs font-medium text-[#9B8EDB] hover:bg-[#EAE6F8]/60 transition border border-[#9B8EDB]/30"
             >
               {copiedField === 'draft' ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
               <span>{copiedField === 'draft' ? 'Copied' : 'Copy Draft'}</span>
             </button>
           </div>
 
-          <div className="rounded-2xl bg-[var(--bg-base)] p-4 text-xs font-mono text-[var(--text-ivory)] whitespace-pre-wrap max-h-96 overflow-y-auto border border-[#C9A24B]/15">
+          <div className="rounded-2xl bg-[var(--bg-base)] p-4 text-xs font-mono text-[var(--text-ivory)] whitespace-pre-wrap max-h-96 overflow-y-auto border border-[var(--border-color)]">
             {complaintDraft}
           </div>
         </div>
