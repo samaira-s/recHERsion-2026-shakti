@@ -129,7 +129,7 @@ export const IntegrityPage: React.FC = () => {
         <div className="rounded-2xl bg-[var(--bg-raised)] p-4 border border-[#C9A24B]/20 flex items-start gap-3 text-xs text-[var(--text-muted)]">
           <Info className="w-5 h-5 text-[#C9A24B] shrink-0 mt-0.5" />
           <p>
-            <strong className="text-[var(--text-ivory)]">Plain-language note:</strong> This shows whether your files changed after saving in Saakshi. It verifies that your evidence records haven't been altered on your device. It doesn't prove the original screenshots were genuine when received.
+            <strong className="text-[var(--text-ivory)]">Plain-language note:</strong> This shows whether your files changed after saving in Shakti. It verifies that your evidence records haven't been altered on your device. It doesn't prove the original screenshots were genuine when received.
           </p>
         </div>
 

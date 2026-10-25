@@ -3,11 +3,11 @@ import { useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { OnboardingModal } from '../components/OnboardingModal';
 import { getEncryptedCases, saveEncryptedCase } from '../lib/storage';
-import { getVaultSession } from '../lib/vaultSession';
+import { getVaultSession, getHelperSession } from '../lib/vaultSession';
 import { decryptData, encryptData } from '../lib/crypto';
 import { createDemoCaseData, DEMO_CASE_ID } from '../lib/demoData';
 import { CaseRecord, SeverityLevel } from '../types';
-import { Shield, Plus, Sparkles, FolderLock, ArrowRight, Heart, FileText } from 'lucide-react';
+import { Shield, Plus, Sparkles, FolderLock, ArrowRight, Heart, FileText, Users } from 'lucide-react';
 
 export const Home: React.FC = () => {
   const [cases, setCases] = useState<CaseRecord[]>([]);
@@ -18,6 +18,12 @@ export const Home: React.FC = () => {
   const navigate = useNavigate();
 
   useEffect(() => {
+    const helper = getHelperSession();
+    if (helper) {
+      navigate(`/case/${helper.caseId}`);
+      return;
+    }
+
     const session = getVaultSession();
     if (!session.key) {
       navigate('/');
@@ -158,6 +164,13 @@ export const Home: React.FC = () => {
               >
                 <Sparkles className="w-4 h-4 text-[#9B8EDB]" />
                 <span>Load demo case</span>
+              </button>
+              <button
+                onClick={() => navigate('/helper')}
+                className="flex items-center gap-2 rounded-2xl bg-[var(--bg-cards)] px-6 py-3.5 text-sm font-medium text-[var(--text-ivory)] border border-[var(--border-color)] hover:bg-[#EAE6F8]/30 transition"
+              >
+                <Users className="w-4 h-4 text-[#9B8EDB]" />
+                <span>Help someone else</span>
               </button>
             </div>
           </div>

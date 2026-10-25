@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { getVaultMeta, saveVaultMeta, saveEncryptedCase } from '../lib/storage';
 import { generateSalt, deriveKeyFromPin, encryptData, decryptData } from '../lib/crypto';
 import { setVaultSession } from '../lib/vaultSession';
-import { createDemoCaseData } from '../lib/demoData';
+import { createDemoCaseData, createUpiRefundDemoCase } from '../lib/demoData';
 import { Shield } from 'lucide-react';
 
 export const Calculator: React.FC = () => {
@@ -171,9 +171,13 @@ export const Calculator: React.FC = () => {
 
       await saveVaultMeta(meta);
 
-      const { caseRecord, items } = await createDemoCaseData();
-      const encCase = await encryptData(key, { caseRecord, items });
-      await saveEncryptedCase(caseRecord.id, encCase.ciphertext, encCase.iv);
+      const demo1 = await createDemoCaseData();
+      const encCase1 = await encryptData(key, demo1);
+      await saveEncryptedCase(demo1.caseRecord.id, encCase1.ciphertext, encCase1.iv);
+
+      const demo2 = await createUpiRefundDemoCase();
+      const encCase2 = await encryptData(key, demo2);
+      await saveEncryptedCase(demo2.caseRecord.id, encCase2.ciphertext, encCase2.iv);
 
       setVaultSession(key, false, false);
       setShowSetup(false);

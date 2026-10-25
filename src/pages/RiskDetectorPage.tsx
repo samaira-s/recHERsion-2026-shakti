@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
-import { getEncryptedCases } from '../lib/storage';
+import { getEncryptedCases, saveEncryptedCase } from '../lib/storage';
 import { getVaultSession } from '../lib/vaultSession';
-import { decryptData } from '../lib/crypto';
-import { CaseRecord, EvidenceItem, RiskAnalysisResult, SeverityLevel } from '../types';
+import { decryptData, encryptData } from '../lib/crypto';
+import { CaseRecord, EvidenceItem, RiskAnalysisResult, SeverityLevel, CaseType } from '../types';
+import { computeEvidenceHash, getFallbackAnalysis } from '../lib/analysisHelper';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
-import { Shield, Sparkles, ArrowLeft, CheckCircle2, XCircle, BookOpen } from 'lucide-react';
+import { Shield, Sparkles, ArrowLeft, CheckCircle2, XCircle, BookOpen, FileText } from 'lucide-react';
 
 export const RiskDetectorPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
@@ -17,6 +18,7 @@ export const RiskDetectorPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [aiEnabled, setAiEnabled] = useState(true);
   const [language, setLanguage] = useState<'en' | 'hi' | 'kn' | 'mr'>('en');
+  const [selectedType, setSelectedType] = useState<CaseType>('not_sure');
 
   useEffect(() => {
     const session = getVaultSession();
@@ -25,7 +27,7 @@ export const RiskDetectorPage: React.FC = () => {
       return;
     }
     loadData();
-  }, [id, aiEnabled, language]);
+  }, [id, aiEnabled, language, selectedType]);
 
   const loadData = async () => {
     try {
@@ -40,29 +42,62 @@ export const RiskDetectorPage: React.FC = () => {
       }
 
       const decrypted = await decryptData(session.key, target.ciphertext, target.iv);
-      setCaseRecord(decrypted.caseRecord);
+      const cRec = decrypted.caseRecord as CaseRecord;
       const evItems: EvidenceItem[] = decrypted.items || [];
+      
+      setCaseRecord(cRec);
       setItems(evItems);
+      const currentCaseType = selectedType !== 'not_sure' ? selectedType : (cRec.caseType || 'not_sure');
+      setSelectedType(currentCaseType);
+
+      const currentEvHash = computeEvidenceHash(evItems);
+
+      // Check cache in cRec.riskAnalysis
+      if (cRec.riskAnalysis && cRec.riskAnalysis.evidenceHash === currentEvHash && cRec.caseType === currentCaseType) {
+        setAnalysis(cRec.riskAnalysis);
+        setLoading(false);
+        return;
+      }
 
       const allText = evItems.map(i => `${i.platform}: ${i.content}`).join('\n');
 
+      let computedAnalysis: RiskAnalysisResult;
+
       if (!aiEnabled || !allText.trim()) {
-        setAnalysis(getFallbackAnalysis(evItems));
+        computedAnalysis = getFallbackAnalysis(evItems, currentCaseType);
       } else {
         try {
           const res = await fetch('/api/ai/analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ textContent: allText, language }),
+            body: JSON.stringify({ textContent: allText, chosenType: currentCaseType, language }),
           });
           const data = await res.json();
           if (data.error) throw new Error(data.error);
-          setAnalysis(data);
+          computedAnalysis = {
+            ...data,
+            evidenceHash: currentEvHash,
+          };
         } catch (err) {
           console.error('AI analysis failed, falling back to rule-based:', err);
-          setAnalysis(getFallbackAnalysis(evItems));
+          computedAnalysis = getFallbackAnalysis(evItems, currentCaseType);
         }
       }
+
+      setAnalysis(computedAnalysis);
+
+      // Save analysis and caseType back to encrypted storage
+      const updatedCase: CaseRecord = {
+        ...cRec,
+        caseType: computedAnalysis.suggested_type || currentCaseType,
+        riskAnalysis: computedAnalysis,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const encrypted = await encryptData(session.key, { caseRecord: updatedCase, items: evItems });
+      await saveEncryptedCase(id, encrypted.ciphertext, encrypted.iv, session.isDuress);
+      setCaseRecord(updatedCase);
+
     } catch (err) {
       console.error('Error loading risk analysis:', err);
     } finally {
@@ -70,58 +105,9 @@ export const RiskDetectorPage: React.FC = () => {
     }
   };
 
-  const getFallbackAnalysis = (evItems: EvidenceItem[]): RiskAnalysisResult => {
-    const messages = evItems.map((item, index) => {
-      const lower = item.content.toLowerCase();
-      let stage: 'rapport' | 'platform_shift' | 'image_request' | 'pressure' | 'payment_demand' | 'benign' = 'benign';
-      let risk = 15;
-
-      if (lower.includes('whatsapp') || lower.includes('telegram') || lower.includes('snapchat')) {
-        stage = 'platform_shift';
-        risk = 35;
-      }
-      if (lower.includes('photo') || lower.includes('pic') || lower.includes('image') || lower.includes('casual')) {
-        stage = 'image_request';
-        risk = 60;
-      }
-      if (lower.includes('share') || lower.includes('family') || lower.includes('friends') || lower.includes('contacts')) {
-        stage = 'pressure';
-        risk = 85;
-      }
-      if (lower.includes('pay') || lower.includes('upi') || lower.includes('₹') || lower.includes('rs') || lower.includes('rupees') || lower.includes('amount')) {
-        stage = 'payment_demand';
-        risk = 95;
-      }
-
-      return {
-        index: index + 1,
-        stage,
-        risk,
-        explanation: `Detected heuristic stage: ${stage}`,
-      };
-    });
-
-    const maxRisk = Math.max(0, ...messages.map(m => m.risk));
-    let overall_severity: SeverityLevel = 'keep_an_eye';
-    if (maxRisk >= 80) overall_severity = 'act_soon';
-    else if (maxRisk >= 50) overall_severity = 'take_care';
-
-    return {
-      messages,
-      overall_severity,
-      summary: 'Analysis based on local heuristic rules (No-AI mode active or API offline). Shows progressive pressure patterns.',
-      do_now: [
-        'Save all chat screenshots and evidence securely in your Saakshi sanctuary.',
-        'Do not pay any money under any circumstances; payment does not stop extortion.',
-        'Block the account/number on the platform without deleting chats.',
-      ],
-      dont_do: [
-        'Do not delete or clear the chat history; keep them as proof.',
-        'Do not panic or engage in negotiation with the abuser.',
-        'Do not forward morphed images or respond to threats.',
-      ],
-      confidence_note: 'Rule-based local fallback analysis.',
-    };
+  const handleTypeChange = async (newType: CaseType) => {
+    setSelectedType(newType);
+    setLoading(true);
   };
 
   const getSeverityBadge = (sev: SeverityLevel) => {
@@ -146,7 +132,7 @@ export const RiskDetectorPage: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[var(--bg-base)] text-[var(--text-ivory)]">
+    <div className="min-h-screen bg-[var(--bg-base)] text-[var(--text-ivory)] pb-16">
       <Header />
 
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-8">
@@ -181,9 +167,30 @@ export const RiskDetectorPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Notice */}
-        <div className="rounded-2xl bg-[var(--bg-raised)] p-4 border border-[#C9A24B]/20 text-xs text-[var(--text-muted)]">
-          Using AI sends the text you choose to a secure third-party service (Gemini). You can switch this off anytime with the No-AI mode toggle.
+        {/* Case Type Selector */}
+        <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[#C9A24B]/25 space-y-3">
+          <label className="block text-sm font-serif font-bold text-[var(--text-ivory)]">What kind of situation is this?</label>
+          <p className="text-xs text-[var(--text-muted)]">Select the situation type or let Shakti suggest it based on your evidence.</p>
+          <select
+            value={selectedType}
+            onChange={e => handleTypeChange(e.target.value as CaseType)}
+            className="w-full rounded-xl bg-[var(--bg-cards)] border border-[#C9A24B]/30 p-3 text-sm text-[var(--text-ivory)] focus:outline-none focus:ring-2 focus:ring-[#C9A24B]"
+          >
+            <option value="not_sure">Not sure, let Shakti suggest</option>
+            <option value="sextortion">Sextortion / Photo Blackmail</option>
+            <option value="financial_fraud">Financial Fraud (UPI / KYC / Refund / Job / Loan)</option>
+            <option value="impersonation_or_fake_profile">Impersonation or Fake Profile</option>
+            <option value="stalking_or_harassment">Stalking or Harassment</option>
+            <option value="morphed_or_deepfake_image">Morphed or Deepfake Image</option>
+            <option value="other">Other Incident</option>
+          </select>
+
+          {analysis && (
+            <div className="flex items-center justify-between text-xs text-[#C9A24B] pt-2 border-t border-[#C9A24B]/15">
+              <span>Suggested Type: <strong className="uppercase">{analysis.suggested_type.replace(/_/g, ' ')}</strong> ({analysis.type_confidence}% confidence)</span>
+              <span>NCRP Category: {analysis.ncrp_category}</span>
+            </div>
+          )}
         </div>
 
         {/* Severity & Summary Card */}
@@ -199,12 +206,18 @@ export const RiskDetectorPage: React.FC = () => {
           <p className="text-sm text-[var(--text-muted)] leading-relaxed">
             {analysis?.summary || 'Analyzing conversation progression...'}
           </p>
+
+          {analysis?.confidence_note && (
+            <div className="text-xs text-[#C9A24B] bg-[#C9A24B]/10 p-3 rounded-2xl border border-[#C9A24B]/20">
+              {analysis.confidence_note}
+            </div>
+          )}
         </div>
 
         {/* Risk Over Time Chart */}
         {chartData.length > 0 && (
           <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[#C9A24B]/25 space-y-4">
-            <h3 className="text-lg font-serif font-bold text-[var(--text-ivory)]">Risk Progression Over Time</h3>
+            <h3 className="text-lg font-serif font-bold text-[var(--text-ivory)]">Risk Progression Over Time ({selectedType !== 'not_sure' ? selectedType : (analysis?.suggested_type || 'General')} Stages)</h3>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={chartData}>
@@ -257,16 +270,26 @@ export const RiskDetectorPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Response Playbook for Morphed Images / Deepfakes */}
-        <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[#C9A24B]/25 space-y-3">
-          <div className="flex items-center gap-2 text-[#C9A24B]">
-            <BookOpen className="w-5 h-5" />
-            <h3 className="font-serif font-bold text-base text-[var(--text-ivory)]">Response Playbook for Morphed Images / Media</h3>
+        {/* Complaint Draft Preview */}
+        {analysis?.complaint_draft && (
+          <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[#C9A24B]/25 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-[#C9A24B]">
+                <FileText className="w-5 h-5" />
+                <h3 className="font-serif font-bold text-base text-[var(--text-ivory)]">Generated Complaint Draft Preview</h3>
+              </div>
+              <button
+                onClick={() => navigate(`/case/${id}/report`)}
+                className="text-xs font-semibold text-[#C9A24B] hover:underline"
+              >
+                View full report & PDF →
+              </button>
+            </div>
+            <pre className="rounded-2xl bg-[var(--bg-base)] p-4 text-xs font-mono text-[var(--text-ivory)] whitespace-pre-wrap border border-[#C9A24B]/15 max-h-48 overflow-y-auto">
+              {analysis.complaint_draft}
+            </pre>
           </div>
-          <p className="text-xs text-[var(--text-muted)] leading-relaxed">
-            If you are facing morphed images or impersonation: preserve evidence in your Saakshi sanctuary, do not forward or share the morphed content, report directly to the platform using official takedown forms, and report to the National Cyber Crime Portal (cybercrime.gov.in or helpline 1930).
-          </p>
-        </div>
+        )}
       </main>
     </div>
   );

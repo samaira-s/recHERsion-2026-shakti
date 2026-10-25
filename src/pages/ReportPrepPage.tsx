@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { getEncryptedCases } from '../lib/storage';
-import { getVaultSession } from '../lib/vaultSession';
+import { getVaultSession, getHelperSession } from '../lib/vaultSession';
 import { decryptData } from '../lib/crypto';
 import { extractSuspectDetails } from '../lib/extractor';
 import { CaseRecord, EvidenceItem, SuspectDetail } from '../types';
@@ -21,6 +21,14 @@ export const ReportPrepPage: React.FC = () => {
   const [copiedField, setCopiedField] = useState<string | null>(null);
 
   useEffect(() => {
+    const helper = getHelperSession();
+    if (helper) {
+      if (id !== helper.caseId) {
+        navigate(`/case/${helper.caseId}`);
+        return;
+      }
+    }
+
     const session = getVaultSession();
     if (!session.key) {
       navigate('/');
@@ -142,6 +150,17 @@ Sincerely,
       }
 
       let signatureTag = 'unsigned_fingerprint';
+      const helper = getHelperSession();
+      if (helper) {
+        if (y > 270) { doc.addPage(); y = 20; }
+        doc.setFontSize(9);
+        doc.setTextColor(120, 120, 120);
+        const helperLine = `Prepared with support from ${helper.helperLabel} on ${new Date().toLocaleDateString()}. Consent given by the survivor in-app. (Note: Consent is self-declared in this prototype).`;
+        const splitHelper = doc.splitTextToSize(helperLine, 170);
+        doc.text(splitHelper, 20, y);
+        y += splitHelper.length * 5 + 6;
+      }
+
       const chainHead = items.length > 0 ? items[items.length - 1].chainHash : 'GENESIS';
       const timestamp = new Date().toISOString();
       try {

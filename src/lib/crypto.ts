@@ -68,3 +68,10 @@ export async function sha256(message: string): Promise<string> {
   const hashArray = Array.from(new Uint8Array(hashBuffer));
   return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
 }
+
+export async function sha256Buffer(buffer: ArrayBuffer | ArrayBufferView): Promise<string> {
+  const hashBuffer = await window.crypto.subtle.digest('SHA-256', buffer as ArrayBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+

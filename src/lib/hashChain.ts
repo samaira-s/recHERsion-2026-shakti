@@ -7,7 +7,7 @@ export async function computeItemHashes(
   timestamp: string
 ): Promise<{ contentHash: string; chainHash: string }> {
   const contentHash = await sha256(content);
-  const chainInput = `${prevChainHash}:${contentHash}:${timestamp}`;
+  const chainInput = prevChainHash + contentHash + timestamp;
   const chainHash = await sha256(chainInput);
   return { contentHash, chainHash };
 }

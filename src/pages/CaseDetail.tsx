@@ -2,13 +2,13 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { getEncryptedCases, saveEncryptedCase } from '../lib/storage';
-import { getVaultSession } from '../lib/vaultSession';
-import { decryptData, encryptData } from '../lib/crypto';
+import { getVaultSession, getHelperSession, clearVaultSession } from '../lib/vaultSession';
+import { decryptData, encryptData, sha256Buffer } from '../lib/crypto';
 import { computeItemHashes } from '../lib/hashChain';
 import { CaseRecord, EvidenceItem, EvidencePlatform } from '../types';
 import {
   Shield, Plus, Upload, FileText, Link as LinkIcon, Mic, MicOff,
-  CheckCircle, ArrowRight, Lock, Sparkles, AlertTriangle, Trash2
+  CheckCircle2, ArrowRight, Sparkles, AlertTriangle, RefreshCw
 } from 'lucide-react';
 
 export const CaseDetail: React.FC = () => {
@@ -20,16 +20,29 @@ export const CaseDetail: React.FC = () => {
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [activeTab, setActiveTab] = useState<'screenshot' | 'text' | 'link'>('text');
 
-  // Form state
-  const [platform, setPlatform] = useState<EvidencePlatform>('WhatsApp');
+  // Form state & feedback
+  const [platform, setPlatform] = useState<EvidencePlatform>('Other');
   const [textContent, setTextContent] = useState('');
   const [note, setNote] = useState('');
   const [screenshotData, setScreenshotData] = useState<string>('');
   const [linkUrl, setLinkUrl] = useState('');
   const [isListening, setIsListening] = useState(false);
   const [speechSupported, setSpeechSupported] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [timeLeft, setTimeLeft] = useState<string>('');
+
+  const helper = getHelperSession();
 
   useEffect(() => {
+    const helperSession = getHelperSession();
+    if (helperSession) {
+      if (id !== helperSession.caseId) {
+        navigate(`/case/${helperSession.caseId}`);
+        return;
+      }
+    }
+
     const session = getVaultSession();
     if (!session.key) {
       navigate('/');
@@ -42,10 +55,30 @@ export const CaseDetail: React.FC = () => {
     }
   }, [id]);
 
+  useEffect(() => {
+    if (!helper) return;
+    const interval = setInterval(() => {
+      const remaining = helper.expiresAt - Date.now();
+      if (remaining <= 0) {
+        clearVaultSession();
+        navigate('/');
+      } else {
+        const mins = Math.floor(remaining / 60000);
+        const secs = Math.floor((remaining % 60000) / 1000);
+        setTimeLeft(`${mins}:${secs < 10 ? '0' : ''}${secs}`);
+      }
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [helper]);
+
   const loadCaseData = async () => {
     try {
       const session = getVaultSession();
-      if (!session.key || !id) return;
+      if (!session.key) {
+        navigate('/');
+        return;
+      }
+      if (!id) return;
 
       const enc = await getEncryptedCases();
       const target = enc.find(c => c.id === id);
@@ -59,71 +92,129 @@ export const CaseDetail: React.FC = () => {
       setItems(decrypted.items || []);
     } catch (err) {
       console.error('Error loading case detail:', err);
+      setErrorMsg('Failed to decrypt case data. Please unlock your vault again.');
     } finally {
       setLoading(false);
     }
   };
 
-  const saveUpdatedCase = async (updatedItems: EvidenceItem[]) => {
-    const session = getVaultSession();
-    if (!session.key || !caseRecord || !id) return;
-
-    const updatedCase: CaseRecord = {
-      ...caseRecord,
-      updatedAt: new Date().toISOString(),
-    };
-
-    const enc = await encryptData(session.key, { caseRecord: updatedCase, items: updatedItems });
-    await saveEncryptedCase(id, enc.ciphertext, enc.iv, session.isDuress);
-    setCaseRecord(updatedCase);
-    setItems(updatedItems);
-  };
-
   const handleAddEvidence = async (e: React.FormEvent) => {
     e.preventDefault();
-    let content = '';
-    if (activeTab === 'text') content = textContent.trim();
-    else if (activeTab === 'screenshot') content = screenshotData;
-    else if (activeTab === 'link') content = linkUrl.trim();
+    setErrorMsg(null);
 
-    if (!content) return;
+    try {
+      const session = getVaultSession();
+      if (!session.key) {
+        navigate('/');
+        return;
+      }
 
-    const timestamp = new Date().toISOString();
-    const prevHash = items.length > 0 ? items[items.length - 1].chainHash : 'GENESIS';
+      let content = '';
+      if (activeTab === 'text') {
+        content = textContent.trim();
+      } else if (activeTab === 'screenshot') {
+        content = screenshotData;
+      } else if (activeTab === 'link') {
+        content = linkUrl.trim();
+      }
 
-    const { contentHash, chainHash } = await computeItemHashes(prevHash, content, timestamp);
+      if (!content) {
+        setErrorMsg('Please provide content for this evidence item before saving.');
+        return;
+      }
 
-    const newItem: EvidenceItem = {
-      id: `item_${Date.now()}`,
-      caseId: id!,
-      type: activeTab,
-      platform,
-      content,
-      timestamp,
-      note: note.trim() || undefined,
-      contentHash,
-      prevChainHash: prevHash,
-      chainHash,
-    };
+      const timestamp = new Date().toISOString();
+      const prevHash = items.length > 0 ? items[items.length - 1].chainHash : 'GENESIS';
 
-    const updated = [...items, newItem];
-    await saveUpdatedCase(updated);
+      let contentHash = '';
+      if (activeTab === 'screenshot' && screenshotData.startsWith('data:')) {
+        // If image, we can compute sha256 or use base64 bytes
+        const base64Part = screenshotData.split(',')[1];
+        if (base64Part) {
+          const binaryStr = atob(base64Part);
+          const bytes = new Uint8Array(binaryStr.length);
+          for (let i = 0; i < binaryStr.length; i++) {
+            bytes[i] = binaryStr.charCodeAt(i);
+          }
+          contentHash = await sha256Buffer(bytes);
+        } else {
+          const hashes = await computeItemHashes(prevHash, content, timestamp);
+          contentHash = hashes.contentHash;
+        }
+      } else {
+        const hashes = await computeItemHashes(prevHash, content, timestamp);
+        contentHash = hashes.contentHash;
+      }
 
-    setTextContent('');
-    setNote('');
-    setScreenshotData('');
-    setLinkUrl('');
-    setShowAddSheet(false);
+      const chainInput = prevHash + contentHash + timestamp;
+      const { sha256 } = await import('../lib/crypto');
+      const chainHash = await sha256(chainInput);
+
+      const newItem: EvidenceItem = {
+        id: `item_${Date.now()}`,
+        caseId: id!,
+        type: activeTab,
+        platform: platform || 'Other',
+        content,
+        timestamp,
+        note: note.trim() || undefined,
+        contentHash,
+        prevChainHash: prevHash,
+        chainHash,
+      };
+
+      const updatedItems = [...items, newItem];
+
+      const updatedCase: CaseRecord = {
+        ...caseRecord!,
+        updatedAt: new Date().toISOString(),
+      };
+
+      const enc = await encryptData(session.key, { caseRecord: updatedCase, items: updatedItems });
+      await saveEncryptedCase(id!, enc.ciphertext, enc.iv, session.isDuress);
+
+      setCaseRecord(updatedCase);
+      setItems(updatedItems);
+
+      // Reset form
+      setTextContent('');
+      setNote('');
+      setScreenshotData('');
+      setLinkUrl('');
+      setPlatform('Other');
+      setShowAddSheet(false);
+      setSuccessMsg('Saved and sealed securely.');
+      setTimeout(() => setSuccessMsg(null), 4000);
+    } catch (err: any) {
+      console.error('Error saving evidence:', err);
+      setErrorMsg(err?.message || 'Failed to save evidence. Please try again.');
+    }
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    setErrorMsg(null);
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      setScreenshotData(reader.result as string);
-    };
-    reader.readAsDataURL(file);
+
+    if (file.size > 5 * 1024 * 1024) {
+      setErrorMsg('Image size must be under 5 MB. Please choose a smaller file.');
+      return;
+    }
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
+      }
+      const base64 = btoa(binary);
+      const dataUrl = `data:${file.type || 'image/png'};base64,${base64}`;
+      setScreenshotData(dataUrl);
+    } catch (err) {
+      console.error('Error reading image file:', err);
+      setErrorMsg('Could not read image file. Please try another image.');
+    }
   };
 
   const startVoiceInput = (lang: string = 'en-IN') => {
@@ -151,6 +242,54 @@ export const CaseDetail: React.FC = () => {
       <Header />
 
       <main className="max-w-4xl mx-auto px-4 py-8 space-y-8">
+        {successMsg && (
+          <div className="rounded-2xl bg-[#7FC4A3]/20 border border-[#7FC4A3]/40 p-4 flex items-center gap-3 text-sm text-[var(--text-ivory)]">
+            <CheckCircle2 className="w-5 h-5 text-[#7FC4A3]" />
+            <span>{successMsg}</span>
+          </div>
+        )}
+
+        {errorMsg && (
+          <div className="rounded-2xl bg-[#F0B27A]/20 border border-[#F0B27A]/50 p-4 flex items-center gap-3 text-sm text-[var(--text-ivory)]">
+            <AlertTriangle className="w-5 h-5 text-[#F0B27A]" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
+        {helper && (
+          <div className="rounded-3xl bg-[var(--bg-raised)] p-4 border border-[#C9A24B]/40 flex flex-col sm:flex-row items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-[#C9A24B]/20 px-3.5 py-1 text-xs font-semibold text-[#C9A24B]">
+                Helper Session Active ({helper.helperLabel})
+              </span>
+              <span className="text-xs text-[var(--text-muted)] font-mono">
+                Expires in {timeLeft || '30:00'}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                clearVaultSession();
+                navigate('/');
+              }}
+              className="rounded-xl bg-[#D9778F]/20 px-4 py-2 text-xs font-medium text-[#D9778F] hover:bg-[#D9778F]/30 transition border border-[#D9778F]/40"
+            >
+              End session
+            </button>
+          </div>
+        )}
+
+        {helper && (
+          <div className="rounded-3xl bg-[var(--bg-raised)] p-6 border border-[#C9A24B]/30 space-y-3">
+            <h3 className="text-sm font-serif font-bold text-[#C9A24B] uppercase tracking-wider">Helper Guidance</h3>
+            <p className="text-xs text-[var(--text-ivory)] leading-relaxed font-medium">
+              "Listen first. Don't pressure her. Never ask her to pay. Keep the original messages. You can prepare, she decides."
+            </p>
+            <div className="text-[11px] text-[var(--text-muted)] pt-2 border-t border-[#C9A24B]/15">
+              Support & Referrals: Cyber Helpline <a href="tel:1930" className="underline font-bold">1930</a> · Portal <a href="https://cybercrime.gov.in" target="_blank" rel="noreferrer" className="underline font-bold">cybercrime.gov.in</a> · Emergency <a href="tel:112" className="underline font-bold">112</a>
+            </div>
+          </div>
+        )}
+
         {/* Case Header */}
         <div className="rounded-3xl bg-[var(--bg-raised)] p-6 shadow-sm border border-[#C9A24B]/25 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
           <div>
@@ -162,7 +301,7 @@ export const CaseDetail: React.FC = () => {
           </div>
 
           <button
-            onClick={() => setShowAddSheet(true)}
+            onClick={() => { setErrorMsg(null); setShowAddSheet(true); }}
             className="flex items-center gap-2 rounded-2xl bg-[#C9A24B] px-5 py-3 text-sm font-medium text-[#17101F] shadow-md hover:bg-[#b8913e] transition"
           >
             <Plus className="w-4 h-4" />
@@ -223,7 +362,7 @@ export const CaseDetail: React.FC = () => {
             </div>
           ) : (
             <div className="relative border-l-2 border-[#C9A24B]/30 ml-4 space-y-6 pl-6">
-              {items.map((item, index) => (
+              {items.map((item) => (
                 <div key={item.id} className="relative rounded-3xl bg-[var(--bg-raised)] p-5 shadow-xs border border-[#C9A24B]/20 space-y-3">
                   <div className="absolute -left-[31px] top-5 flex h-4 w-4 items-center justify-center rounded-full bg-[#C9A24B] ring-4 ring-[var(--bg-base)]" />
 
@@ -264,28 +403,34 @@ export const CaseDetail: React.FC = () => {
             <div className="w-full max-w-lg rounded-3xl bg-[var(--bg-raised)] p-6 shadow-2xl border border-[#C9A24B]/30 text-[var(--text-ivory)] max-h-[90vh] overflow-y-auto">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xl font-serif font-bold">Add Evidence</h3>
-                <button onClick={() => setShowAddSheet(false)} className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-ivory)]">Cancel</button>
+                <button type="button" onClick={() => setShowAddSheet(false)} className="text-xs font-semibold text-[var(--text-muted)] hover:text-[var(--text-ivory)]">Cancel</button>
               </div>
+
+              {errorMsg && (
+                <div className="mb-4 rounded-xl bg-[#F0B27A]/20 p-3 border border-[#F0B27A]/40 text-xs text-[var(--text-ivory)]">
+                  {errorMsg}
+                </div>
+              )}
 
               {/* Tabs */}
               <div className="flex rounded-2xl bg-[var(--bg-cards)] p-1 mb-6 border border-[#C9A24B]/20">
                 <button
                   type="button"
-                  onClick={() => setActiveTab('text')}
+                  onClick={() => { setActiveTab('text'); setErrorMsg(null); }}
                   className={`flex-1 rounded-xl py-2 text-xs font-medium transition ${activeTab === 'text' ? 'bg-[#C9A24B] text-[#17101F] shadow-xs font-semibold' : 'text-[var(--text-muted)]'}`}
                 >
                   Paste Chat Text
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('screenshot')}
+                  onClick={() => { setActiveTab('screenshot'); setErrorMsg(null); }}
                   className={`flex-1 rounded-xl py-2 text-xs font-medium transition ${activeTab === 'screenshot' ? 'bg-[#C9A24B] text-[#17101F] shadow-xs font-semibold' : 'text-[var(--text-muted)]'}`}
                 >
                   Upload Screenshot
                 </button>
                 <button
                   type="button"
-                  onClick={() => setActiveTab('link')}
+                  onClick={() => { setActiveTab('link'); setErrorMsg(null); }}
                   className={`flex-1 rounded-xl py-2 text-xs font-medium transition ${activeTab === 'link' ? 'bg-[#C9A24B] text-[#17101F] shadow-xs font-semibold' : 'text-[var(--text-muted)]'}`}
                 >
                   Add Link
@@ -300,19 +445,19 @@ export const CaseDetail: React.FC = () => {
                     onChange={e => setPlatform(e.target.value as EvidencePlatform)}
                     className="w-full rounded-xl bg-[var(--bg-cards)] border border-[#C9A24B]/30 p-3 text-sm text-[var(--text-ivory)] focus:outline-none focus:ring-2 focus:ring-[#C9A24B]"
                   >
+                    <option value="Other">Other</option>
                     <option value="WhatsApp">WhatsApp</option>
                     <option value="Instagram">Instagram</option>
                     <option value="Telegram">Telegram</option>
                     <option value="Snapchat">Snapchat</option>
                     <option value="Facebook">Facebook</option>
-                    <option value="Other">Other</option>
                   </select>
                 </div>
 
                 {activeTab === 'text' && (
                   <div>
                     <div className="flex items-center justify-between mb-1">
-                      <label className="block text-xs font-medium text-[var(--text-muted)]">Chat Text Content</label>
+                      <label className="block text-xs font-medium text-[var(--text-muted)]">Chat Text Content *</label>
                       {speechSupported && (
                         <button
                           type="button"
@@ -330,20 +475,18 @@ export const CaseDetail: React.FC = () => {
                       onChange={e => setTextContent(e.target.value)}
                       placeholder="Paste messages or notes here..."
                       className="w-full rounded-xl bg-[var(--bg-cards)] border border-[#C9A24B]/30 p-3 text-sm text-[var(--text-ivory)] focus:outline-none focus:ring-2 focus:ring-[#C9A24B]"
-                      required
                     />
                   </div>
                 )}
 
                 {activeTab === 'screenshot' && (
                   <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Upload Screenshot</label>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">Upload Screenshot (Max 5 MB) *</label>
                     <input
                       type="file"
                       accept="image/*"
                       onChange={handleFileUpload}
                       className="w-full rounded-xl bg-[var(--bg-cards)] border border-[#C9A24B]/30 p-3 text-sm text-[var(--text-ivory)] file:mr-4 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-[#C9A24B]/20 file:text-[#C9A24B]"
-                      required
                     />
                     {screenshotData && (
                       <div className="mt-2 h-32 overflow-hidden rounded-xl border border-[#C9A24B]/20 bg-[var(--bg-base)] p-2">
@@ -355,14 +498,13 @@ export const CaseDetail: React.FC = () => {
 
                 {activeTab === 'link' && (
                   <div>
-                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">URL / Link</label>
+                    <label className="block text-xs font-medium text-[var(--text-muted)] mb-1">URL / Link *</label>
                     <input
                       type="url"
                       value={linkUrl}
                       onChange={e => setLinkUrl(e.target.value)}
                       placeholder="https://..."
                       className="w-full rounded-xl bg-[var(--bg-cards)] border border-[#C9A24B]/30 p-3 text-sm text-[var(--text-ivory)] focus:outline-none focus:ring-2 focus:ring-[#C9A24B]"
-                      required
                     />
                   </div>
                 )}

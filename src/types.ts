@@ -27,20 +27,35 @@ export interface SuspectDetail {
   ignored: boolean;
 }
 
+export type CaseType = 
+  | 'not_sure'
+  | 'sextortion'
+  | 'financial_fraud'
+  | 'impersonation_or_fake_profile'
+  | 'stalking_or_harassment'
+  | 'morphed_or_deepfake_image'
+  | 'other';
+
 export interface RiskMessageAnalysis {
   index: number;
-  stage: 'rapport' | 'platform_shift' | 'image_request' | 'pressure' | 'payment_demand' | 'benign';
+  stage: string;
   risk: number; // 0-100
   explanation: string;
 }
 
 export interface RiskAnalysisResult {
+  suggested_type: CaseType;
+  type_confidence: number; // 0-100
+  stages: string[];
   messages: RiskMessageAnalysis[];
   overall_severity: SeverityLevel;
   summary: string;
   do_now: string[];
   dont_do: string[];
+  complaint_draft: string;
+  ncrp_category: string;
   confidence_note: string;
+  evidenceHash: string;
 }
 
 export interface CaseRecord {
@@ -51,6 +66,7 @@ export interface CaseRecord {
   isDemo?: boolean;
   severity: SeverityLevel;
   summary?: string;
+  caseType?: CaseType;
   riskAnalysis?: RiskAnalysisResult;
 }
 
