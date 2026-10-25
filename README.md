@@ -17,7 +17,7 @@ Built for **recHERsion 2026** (ACM-W, NITK Surathkal), Problem Statement 2: Wome
 
 Cybercrime against women is rising (76,650+ incidents were reported on the National Cyber Crime Reporting Portal in 2025, per Rajya Sabha data). A March 2026 parliamentary committee report cites stigma, fear of police and a complex reporting portal as reasons women do not report. Frightened victims often delete chats or pay blackmailers before preserving evidence. Most safety tools help during an emergency; very few help in the first hour after online abuse.
 
-## What Saakshi does
+## What Shakti does
 
 1. **Hide:** the app opens as a working calculator. The user's PIN followed by `=` unlocks it; a wrong PIN is just arithmetic.
 2. **Capture:** screenshots, pasted chats and links are saved to an encrypted local vault.
